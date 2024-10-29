@@ -3,6 +3,14 @@ param (
     [string]$targetFolder
 )
 
+# Confirmation prompt
+$confirmation = Read-Host -Prompt "CAUTION! Are you sure you want to delete all '.vs' folders in $targetFolder? Type 'Yes' to confirm"
+
+if ($confirmation -ne "Yes") {
+    Write-Output "Operation cancelled."
+    exit
+}
+
 # Check if the specified folder exists
 if (Test-Path -Path $targetFolder) {
     # Get all .vs folders recursively, including hidden ones

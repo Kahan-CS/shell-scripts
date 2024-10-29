@@ -3,6 +3,14 @@ param (
     [string]$targetFolder
 )
 
+# Confirmation prompt
+$confirmation = Read-Host -Prompt "CAUTION! Are you sure you want to delete all 'x64' folders in $targetFolder? Type 'Yes' to confirm"
+
+if ($confirmation -ne "Yes") {
+    Write-Output "Operation cancelled."
+    exit
+}
+
 # Function to remove x64 folders within a given directory path
 function Remove-X64FoldersInDirectory {
     param ([string]$path)
