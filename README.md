@@ -6,7 +6,7 @@
 3. **Execute** the script using the following command:
 
    ```powershell
-   .\name_of_script.ps1 -targetFolder "C:\path\to\your\folder"
+   .\name_of_script.ps1 -targetFolder "C:\path\to\your\folder(target)"
 
 ## 🔧 In Progress:
 - Developing **Bash** versions of the scripts.
