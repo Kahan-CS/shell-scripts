@@ -1,3 +1,6 @@
+# This script deletes all '.vs' folders in the specified target folder. It is a simple script without any functions or progress tracking. It prompts for confirmation before proceeding with the deletion.
+
+
 param (
     [Parameter(Mandatory = $true)]
     [string]$targetFolder
