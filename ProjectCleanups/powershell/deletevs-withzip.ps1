@@ -5,6 +5,10 @@ param (
 
 # Confirmation prompt
 $confirmation = Read-Host -Prompt "CAUTION! Are you sure you want to delete all '.vs' folders in $targetFolder? Type 'Yes' to confirm"
+if ($confirmation -ne "Yes") {
+    Write-Output "Operation cancelled."
+    exit
+}
 
 # Function to remove .vs folders within a given directory path
 function Remove-VsFoldersInDirectory {
