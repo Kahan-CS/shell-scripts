@@ -3,6 +3,7 @@
 # This script will delete all folders with the specified name within the target directory and its subdirectories.
 
 # Parameters
+[CmdletBinding()]
 param (
     [switch]$Help,  # Add a parameter to show help
 
