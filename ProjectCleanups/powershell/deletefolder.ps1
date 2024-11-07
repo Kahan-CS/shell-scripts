@@ -17,7 +17,7 @@ param (
 
     [switch]$NoZip,        # Add a switch to skip deletion inside zip files
 
-    [string[]]$ExcludePaths  # Add an array of paths or folder names to exclude from deletion
+    [string[]]$excludedPaths  # Add an array of paths or folder names to exclude from deletion
 
 )
 
@@ -26,7 +26,7 @@ function Show-Help {
     Write-Host "Shell Script: *DeleteFolder* Help Menu" -ForegroundColor Cyan
     Write-Host "===========================================" -ForegroundColor Gray
     Write-Host "Pre-requisites: PowerShell 5.1 or later" -ForegroundColor Yellow
-    Write-Host "Usage: C:\path\to\script\name_of_script.ps1 -targetFolder 'C:\path\to\your\folder' -folderName 'name_of_folder' [-LogToFile] [-CustomVerbose] [-NoZip] [-ExcludePaths 'C:\path\to\exclude']" -ForegroundColor White
+    Write-Host "Usage: C:\path\to\script\name_of_script.ps1 -targetFolder 'C:\path\to\your\folder' -folderName 'name_of_folder' [-LogToFile] [-CustomVerbose] [-NoZip] [-excludedPaths 'C:\path\to\exclude']" -ForegroundColor White
     Write-Host ""
     Write-Host "===========================================" -ForegroundColor Gray
     Write-Host ""
@@ -45,7 +45,7 @@ function Show-Help {
     Write-Host "(Optional) Show detailed processing information." -ForegroundColor Yellow
     Write-Host -NoNewline "  -NoZip         : " -ForegroundColor White
     Write-Host "(Optional) Skip deletion of specified folders inside zip files." -ForegroundColor Yellow
-    Write-Host -NoNewline "  -ExcludePaths  : " -ForegroundColor White
+    Write-Host -NoNewline "  -excludedPaths  : " -ForegroundColor White
     Write-Host "(Optional) Specify paths (OR Folders) to exclude from deletion. Can be an array of paths, but can also include specific Folders." -ForegroundColor Yellow
     Write-Host ""
     Write-Host "===========================================" -ForegroundColor Gray
@@ -55,7 +55,7 @@ function Show-Help {
     Write-Host "  2. To log to a file: .\name_of_script.ps1 -targetFolder 'C:\example' -folderName 'temp' -LogToFile" 
     Write-Host "  3. To enable verbose output: .\name_of_script.ps1 -targetFolder 'C:\example' -folderName 'temp' -CustomVerbose" 
     Write-Host "  4. To skip zip files: .\name_of_script.ps1 -targetFolder 'C:\example' -folderName 'temp' -NoZip" 
-    Write-Host "  5. To exclude specific paths: .\name_of_script.ps1 -targetFolder 'C:\example' -folderName 'temp' -ExcludePaths 'C:\exclude_this'" 
+    Write-Host "  5. To exclude specific paths: .\name_of_script.ps1 -targetFolder 'C:\example' -folderName 'temp' -excludedPaths 'C:\exclude_this'" 
     Write-Host ""
     Write-Host "===========================================" -ForegroundColor Gray
     Write-Host ""
@@ -85,7 +85,7 @@ if (-not [string]::IsNullOrWhiteSpace($targetFolder) -and -not (Test-Path -Path 
 }
 
 # Check for invalid parameters
-$validParams = @("targetFolder", "folderName", "LogToFile", "CustomVerbose", "NoZip", "ExcludePaths", "Help")
+$validParams = @("targetFolder", "folderName", "LogToFile", "CustomVerbose", "NoZip", "excludedPaths", "Help")
 $providedParams = $PSCmdlet.MyInvocation.BoundParameters.Keys
 
 foreach ($param in $providedParams) {
@@ -96,19 +96,34 @@ foreach ($param in $providedParams) {
     }
 }
 
-# Prepare excluded paths based on ExcludePaths input
-$excludedPaths = @()
+# Prepare excluded paths based on excludedPaths input
+$pathsToExclude = @()
 
-foreach ($exclude in $ExcludePaths) {
-    if (Test-Path -Path $exclude) {
+foreach ($exclude in $excludedPaths) {
+    $excludeNormalized = $exclude.ToLower().Trim()
+    
+    if (Test-Path -Path $excludeNormalized) {
         # It's a valid path, add to excluded paths
-        $excludedPaths += $exclude
+        $pathsToExclude += $excludeNormalized
     } else {
         # Assume it's a folder name, search for it
-        $matchingFolders = Get-ChildItem -Path $targetFolder -Recurse -Force -Directory | Where-Object { $_.Name -eq $exclude }
-        $excludedPaths += $matchingFolders.FullName
+        $matchingFolders = Get-ChildItem -Path $targetFolder -Recurse -Force -Directory |
+                           Where-Object { $_.Name.ToLower() -eq $excludeNormalized }
+
+        # Debug: Print each matching folder
+        $matchingFolders | ForEach-Object { Write-Output "Matched folder: $($_.FullName)" }
+
+
+        # Add matching folders' full paths to the exclusion list
+        $pathsToExclude += $matchingFolders.FullName
     }
 }
+
+
+# DEBUGGING: Display the excluded paths
+# After preparing excluded paths based on input
+Write-Output "Excluded paths:"
+$pathsToExclude | ForEach-Object { Write-Output $_ }
 
 
 # Define the log file path if logging is enabled
@@ -136,26 +151,76 @@ function Write-Message {
     }
 }
 
+# Function to collect folders to delete, excluding those in excluded paths
+function Get-FoldersToDelete {
+    param (
+        [string]$path,
+        [string]$folderName,
+        [string[]]$excludedPaths
+    )
+
+    $excludedPaths = $excludedPaths | Where-Object { $_ -ne $null -and $_ -ne "" }
+    $foldersToDelete = @()
+
+    # Gather all folders matching the folder name recursively
+    $allFolders = Get-ChildItem -Path $path -Recurse -Force -Directory | Where-Object { $_.Name -eq $folderName }
+
+    foreach ($folder in $allFolders) {
+        # Skip if the folder is $null
+        if ($null -eq $folder) {
+            continue
+        }
+
+        # Check if the folder's full path matches or is inside any of the excluded paths
+        $isExcluded = $false
+        foreach ($excludePath in $excludedPaths) {
+            if ($excludePath -and $folder.FullName.ToLower().StartsWith($excludePath.ToLower())) {
+                Write-Output "Skipping excluded folder: $($folder.FullName)"
+                $isExcluded = $true
+                break
+            }
+        }
+
+        # Add the folder to delete list if not excluded
+        if (-not $isExcluded) {
+            $foldersToDelete += $folder
+            Write-Message "Adding folder to delete list: $($folder.FullName)" -isVerbose $true
+        }
+    }
+
+    return $foldersToDelete
+}
+
 # Function to remove specified folders within a given directory path
 function Remove-TargetFoldersInDirectory {
-    param ([string]$path, [string]$folderName)
+    param (
+        [string]$path,
+        [string]$folderName,
+        [string[]]$excludedPaths
+    )
     
-    $folders = Get-ChildItem -Path $path -Recurse -Force -Directory -Filter $folderName
+    # Get all folders matching the folderName, excluding those in $excludedPaths (including subdirectories)
+    $folders = Get-FoldersToDelete -path $path -folderName $folderName -excludedPaths $excludedPaths
+
+    
     $folderCount = $folders.Count
+    Write-Message "Found $folderCount '$folderName' folders to delete in $path" -isVerbose $true
+    # Confirmation prompt
+    $confirmation = Read-Host -Prompt "Type y to confirm"
+    if ($confirmation -ne "y") {
+        Write-Output "Operation cancelled."
+        exit
+    }
+
+
     $i = 0
 
     foreach ($folder in $folders) {
-        # Check if the folder is in the excluded paths
-        if ($excludedPaths -contains $folder.FullName) {
-            Write-Output "Skipping excluded folder: $($folder.FullName)"
-            Write-Message "Skipping excluded folder: $($folder.FullName)"
-            continue  # Skip the iteration
-        }
-
-        Write-Message "Found $folderCount '$folderName' folders to delete in $path" -isVerbose $true
         $i++
         Write-Progress -Activity "Deleting '$folderName' folders in directories" -Status "Processing folder $i of $folderCount" -PercentComplete (($i / $folderCount) * 100)
+        
         try {
+            # Reset attributes of all child items before deletion
             $folder | Get-ChildItem -Recurse -Force | ForEach-Object { $_.Attributes = 'Normal' }
             Remove-Item -Path $folder.FullName -Recurse -Force -ErrorAction Stop
             Write-Output "Deleted: $($folder.FullName)"
@@ -166,23 +231,30 @@ function Remove-TargetFoldersInDirectory {
             Write-Message "Failed to delete: $($folder.FullName) - $_"
         }
     }
+    
+    # Keep progress bar at 100% until script concludes
+    Write-Progress -Activity "Deleting '$folderName' folders in directories" -Status "Completed" -PercentComplete 100
 }
+
 
 # Function to process specified folders inside zip files
 function Remove-TargetFoldersInZipFiles {
-    param ([string]$path, [string]$folderName)
+    param (
+        [string]$path,
+        [string]$folderName,
+        [string[]]$excludedPaths
+    )
     
     $zipFiles = Get-ChildItem -Path $path -Recurse -Force -Filter "*.zip"
     $zipCount = $zipFiles.Count
     $j = 0
 
     foreach ($zipFile in $zipFiles) {
-
         # Check if the zip file is in the excluded paths
-        if ($ExcludePaths -contains $zipFile.FullName) {
+        if ($excludedPaths -contains $zipFile.FullName) {
             Write-Output "Skipping excluded zip file: $($zipFile.FullName)"
             Write-Message "Skipping excluded zip file: $($zipFile.FullName)"
-            continue  # Skip this iteration
+            continue
         }
 
         $j++
@@ -192,8 +264,7 @@ function Remove-TargetFoldersInZipFiles {
         $tempExtractPath = Join-Path -Path $env:TEMP -ChildPath ([System.IO.Path]::GetFileNameWithoutExtension($zipPath))
 
         try {
-            # Extract the zip file to a temporary location
-            Write-Output "Extracting $zipPath to $tempExtractPath"
+            # Extract, process, and re-compress the zip file
             Expand-Archive -Path $zipPath -DestinationPath $tempExtractPath -Force
             Write-Message "Expanded zip file to temporary path: $tempExtractPath" -isVerbose $true
 
@@ -213,6 +284,9 @@ function Remove-TargetFoldersInZipFiles {
             Write-Message "Error processing zip file: $zipPath - $_"
         }
     }
+
+    # Finalize the progress bar at 100%
+    Write-Progress -Activity "Processing .zip files" -Status "Completed" -PercentComplete 100
     Write-Output "All '$folderName' folders inside zip files have been deleted."
     Write-Message "All '$folderName' folders inside zip files have been deleted."
 }
@@ -231,7 +305,7 @@ if (Test-Path -Path $targetFolder) {
     }
     # Delete all specified folders in the directory and subdirectories
     Write-Message "Starting deletion of '$folderName' folders in $targetFolder" -isVerbose $true
-    Remove-TargetFoldersInDirectory -path $targetFolder -folderName $folderName
+    Remove-TargetFoldersInDirectory -path $targetFolder -folderName $folderName -excludedPaths $pathsToExclude
 
     # Second confirmation prompt for zip files
     if (-not $NoZip) 
@@ -239,7 +313,7 @@ if (Test-Path -Path $targetFolder) {
         $zipConfirmation = Read-Host -Prompt "Do you also want to delete '$folderName' folders inside zip files? Type 'Yes' to confirm"
         if ($zipConfirmation -eq "Yes") {
             Write-Message "Starting deletion of '$folderName' folders within zip files in $targetFolder" -isVerbose $true
-            Remove-TargetFoldersInZipFiles -path $targetFolder -folderName $folderName
+            Remove-TargetFoldersInZipFiles -path $targetFolder -folderName $folderName -excludedPaths $pathsToExclude
         } else {
             Write-Output "Skipping deletion inside zip files."
             Write-Message "Skipping deletion inside zip files."
