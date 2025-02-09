@@ -1,5 +1,9 @@
 # 🛠️ Shell Scripts for Automating My CS Chores
 
+> **Note:** While I have not actively maintained this repository, this script remains unchanged.  
+> My shell scripts have since evolved across multiple projects, integrating broader automation and management solutions.
+
+
 ## 🚀 How to Run the DeleteFolder Script
 1. **Download** the script into a designated folder.
 2. **Open** a PowerShell terminal in that folder.
