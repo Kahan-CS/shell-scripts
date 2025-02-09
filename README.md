@@ -7,7 +7,6 @@
 - 🔗 [LinkedIn Post](https://www.linkedin.com/posts/kahandesai_github-kahan-csshell-scripts-shell-activity-7258712399409483776-UiUC?utm_source=share&utm_medium=member_desktop&rcm=ACoAAEEb9KMB98MiXvCpPMQ4ndktBnBh2Ryc9Gg)  
 - 🎥 [YouTube Video: Lessons Learned & Project Walkthrough](https://www.youtube.com/watch?v=ID1Bwtr3z5w)
 
-- 
 ## 🚀 How to Run the DeleteFolder Script
 1. **Download** the script into a designated folder.
 2. **Open** a PowerShell terminal in that folder.
